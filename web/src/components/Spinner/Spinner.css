@@ -1,0 +1,20 @@
+.spinner-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh; /* Подгоняет высоту контейнера под высоту видимой области */
+}
+
+.spinner {
+    border: 5px solid rgba(255, 255, 255, 0.3); /* Белый цвет с прозрачностью для "незагруженной" части */
+    border-top: 5px solid #3498db; /* Цвет верхней грани */
+    border-radius: 50%;
+    width: 50px;
+    height: 50px;
+    animation: spin 1s linear infinite; /* Анимация вращения */
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
