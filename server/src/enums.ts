@@ -5,6 +5,7 @@ enum Service {
     ProcessedFile = 'ProcessedFileService',
     AI ='AIService',
     AWS = 'AWSService',
+    Alpr = 'AlprService',
 }
 
 enum Resource {

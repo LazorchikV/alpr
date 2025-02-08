@@ -3,13 +3,19 @@ import { ConfigService } from '@nestjs/config';
 import {S3Client, PutObjectCommand, GetObjectCommand} from '@aws-sdk/client-s3';
 import { RekognitionClient, DetectLabelsCommand } from '@aws-sdk/client-rekognition';
 import { SageMakerRuntimeClient, InvokeEndpointCommand } from '@aws-sdk/client-sagemaker-runtime';
+import * as fs from 'fs';
+import { pipeline } from 'stream';
+import { promisify } from 'util';
+import * as path from 'node:path';
 
 export interface IAWSService<T> {
-    uploadAndAnalyzeImage(file: Express.Multer.File): Promise<Partial<T>>;
+    uploadAndAnalyzeImage(imageKey: string): Promise<Partial<T>>;
+    uploadToS3(file: Express.Multer.File): Promise<string>;
+    downloadFromS3(s3Key: string): Promise<string>;
 }
 
 @Injectable()
-export class AWSService<T> implements IAWSService<T>{
+export class AWSService<T> implements IAWSService<T> {
     private s3Client: S3Client;
     private rekognitionClient: RekognitionClient;
     private sageMakerRuntimeClient: SageMakerRuntimeClient;
@@ -51,18 +57,15 @@ export class AWSService<T> implements IAWSService<T>{
         this.sagemakerEndpoint = this.configService.get<string>('AWS_SAGEMAKER_ENDPOINT_NAME');
     }
 
-    public async uploadAndAnalyzeImage(file: Express.Multer.File): Promise<Partial<T>> {
-        // Загрузка файла в S3
-        const imageKey = await this.uploadToS3(file);
-
+    public async uploadAndAnalyzeImage(imageKey: string): Promise<Partial<T>> {
         // Анализ изображения с использованием Rekognition
-        const analysisResult = await this.analyzeImageWithSageMaker(imageKey) // await this.analyzeImageWithRekognition(imageKey);
+        const analysisResult = await this.analyzeImageWithRekognition(imageKey); // await this.analyzeImageWithSageMaker(imageKey);
 
         // Возвращаем результат анализа
         return analysisResult as Partial<T>;
     }
 
-    async uploadToS3(file: Express.Multer.File): Promise<string> {
+    public async uploadToS3(file: Express.Multer.File): Promise<string> {
         const key = `${Date.now()}_${file.originalname}`;
         const params = {
             Bucket: this.bucketName,
@@ -76,6 +79,49 @@ export class AWSService<T> implements IAWSService<T>{
         await this.s3Client.send(command);
 
         return key; // Возвращаем ключ файла
+    }
+
+    public async downloadFromS3(s3Key: string): Promise<string> {
+        const params = { Bucket: this.bucketName, Key: s3Key };
+        const command = new GetObjectCommand(params);
+        const response = await this.s3Client.send(command);
+
+        if (!response.Body) {
+            throw new Error(`Failed to download file from S3: ${s3Key}`);
+        }
+
+        // Определяем путь к папке и создаем ее, если она отсутствует
+        const tmpDir = path.join(__dirname, '/tmp');
+        if (!fs.existsSync(tmpDir)) {
+            fs.mkdirSync(tmpDir, { recursive: true });
+        }
+
+        // Формируем путь к файлу
+        const localPath = path.join(tmpDir, s3Key);
+        const fileStream = fs.createWriteStream(localPath);
+
+        // Используем pipe через stream и промисифицируем его
+        const streamPipeline = promisify(pipeline);
+        await streamPipeline(response.Body as NodeJS.ReadableStream, fileStream);
+
+        if (!fs.existsSync(localPath)) {
+            throw new Error(`File not found: ${localPath}`);
+        }
+
+        console.log(`Attempting to read image: ${localPath}`);
+
+        const stats = fs.statSync(localPath);
+        console.log(`File size: ${stats.size} bytes`);
+
+        if (stats.size === 0) {
+            throw new Error(`Downloaded file is empty: ${localPath}`);
+        }
+
+        const buffer = fs.readFileSync(localPath);
+        console.log(`First 20 bytes of file: ${buffer.toString('hex').slice(0, 40)}`);
+
+
+        return localPath;
     }
 
     async analyzeImageWithRekognition(imageKey: string): Promise<any> {

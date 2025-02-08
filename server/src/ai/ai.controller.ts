@@ -14,10 +14,10 @@ export class AIController<T> {
      return this.aiService.uploadFile(file);
     }
 
-    @Post('train')
-    async trainModel(): Promise<string> {
-        const { trainX, trainY } = await this.aiService.loadData();
-        return this.aiService.trainModel(trainX, trainY);
-    }
+    // @Post('train')
+    // async trainModel(): Promise<string> {
+    //     const { trainX, trainY } = await this.aiService.loadData();
+    //     return this.aiService.trainModel(trainX, trainY);
+    // }
 }
 
