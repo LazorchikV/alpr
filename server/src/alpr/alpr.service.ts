@@ -4,6 +4,7 @@ import * as Tesseract from 'tesseract.js';
 import * as fs from 'fs';
 import { Service } from '../enums';
 import { IAWSService } from '../aws/aws.service';
+import { PSM } from 'tesseract.js';
 
 export interface IAlprService<T> {
   recognizePlate(s3Key: string): Promise<string>;
@@ -58,7 +59,9 @@ export class AlprService<T> implements IAlprService<T> {
 
       // 6️⃣ Устанавливаем настройки для распознавания номеров
       await worker.setParameters({
-        tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-'
+        tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-',
+        tessedit_pageseg_mode: PSM.AUTO,  // Полностью автоматический
+        user_defined_dpi: '300',
       });
 
       const { data: { text } } = await worker.recognize(croppedPath);
