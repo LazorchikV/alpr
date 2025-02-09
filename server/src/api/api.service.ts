@@ -52,7 +52,7 @@ export class ApiService<T> implements IApiService<T> {
             }
     }
 
-    // Метод для извлечения базового URL из полного URL
+    // Method to extract base URL from full URL
     private static getBaseUrl(url: string): string {
         try {
             const { protocol, host } = new URL(url);
@@ -108,7 +108,7 @@ export class ApiService<T> implements IApiService<T> {
             const response = await axios.get(url);
             const results = response.data.items;
             if (results && results.length > 0) {
-                // Выводим URL первого результата из топ-10
+                // Output URL of the first result from the top 10
                 console.log('First URL in top 10:', results[0].link);
                 return results[0].link;
             } else {
@@ -134,14 +134,14 @@ export class ApiService<T> implements IApiService<T> {
         let answerFile = [];
         const {text = '', file, extension = apiConstants.defaultExtensionCSVFile} = uploadBodyDto;
 
-        // распознание текста (текст или ссылка на сайт)
+        // text recognition (text or website link)
         const regex = (/^(https?:\/\/)?([\da-z\.-]+)\.([a-z\.]{2,6})([\/\w \.-]*)*\/?$/);
         const isUrl = text.match(regex);
 
         if (isUrl) {
             answerText = await this.parseUrl(text);
         } else if (text) {
-            // выполнить поиск url по тексту
+            // search url by text
             const searchUrl: string = await this.searchGoogle(text);
 
             if (!searchUrl) {

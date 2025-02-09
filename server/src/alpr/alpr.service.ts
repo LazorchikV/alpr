@@ -7,7 +7,10 @@ import { IAWSService } from '../aws/aws.service';
 import { PSM } from 'tesseract.js';
 
 export interface IAlprService<T> {
-  recognizePlate(s3Key: string): Promise<{ text: string, boundingBox?: { x: number, y: number, width: number, height: number } }>;
+  recognizePlate(s3Key: string): Promise<{
+    text: string,
+    boundingBox?: { x: number, y: number, width: number, height: number } }
+  >;
 }
 
 
@@ -17,35 +20,38 @@ export class AlprService<T> implements IAlprService<T> {
     @Inject(Service.AWS) private readonly awsService: IAWSService<T>,
   ) {}
 
-  public async recognizePlate(s3Key: string): Promise<{ text: string, boundingBox?: { x: number, y: number, width: number, height: number } }> {
+  public async recognizePlate(s3Key: string): Promise<{
+    text: string,
+    boundingBox?: { x: number, y: number, width: number, height: number }
+  }> {
     try {
-      // 1️⃣ Скачиваем изображение из S3
+      // 1 Downloading image from S3
       const localPath = await this.awsService.downloadFromS3(s3Key);
 
-      // Проверяем, существует ли файл
+      // Checking if the file exists
       if (!fs.existsSync(localPath)) {
-        throw new Error(`Файл не найден: ${localPath}`);
+        throw new Error(`File not found: ${localPath}`);
       }
 
-      // 2️⃣ Загружаем изображение
+      // 2 Loading an image
       const image = cv.imread(localPath);
       if (image.empty) {
-        throw new Error("Ошибка загрузки изображения, пустой объект Mat");
+        throw new Error("Error loading image, empty Mat object");
       }
 
-      // 3️⃣ Преобразуем в серый и фильтруем шум
+      // 3 Convert to gray and filter noise
       const gray = image.bgrToGray();
       const blurred = gray.gaussianBlur(new cv.Size(5, 5), 0);
       const edged = blurred.canny(100, 200);
 
-      // 4️⃣ Ищем контуры
+      // 4 Searching for contours
       const contours = edged.findContours(cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE);
       let licensePlateRegion: cv.Mat | null = null;
       let boundingBox = null;
 
       for (let contour of contours) {
         const rect = contour.boundingRect();
-        if (rect.width > 50 && rect.height > 20) { // Минимальный размер номера
+        if (rect.width > 50 && rect.height > 20) { // Minimum number size
           licensePlateRegion = image.getRegion(new cv.Rect(rect.x, rect.y, rect.width, rect.height));
           boundingBox = { x: rect.x, y: rect.y, width: rect.width, height: rect.height };
           break;
@@ -56,11 +62,11 @@ export class AlprService<T> implements IAlprService<T> {
         return { text: "Not Found" };
       }
 
-      // 5️⃣ Сохраняем обработанный регион
+      // 5 Saving the processed region
       const croppedPath = localPath.replace('.jpg', '_cropped.jpg');
       cv.imwrite(croppedPath, licensePlateRegion);
 
-      // 6️⃣ Запускаем OCR
+      // 6 Run OCR
       const worker = await Tesseract.createWorker('eng');
       await worker.load();
       await worker.reinitialize('eng');
@@ -74,7 +80,7 @@ export class AlprService<T> implements IAlprService<T> {
       const { data: { text } } = await worker.recognize(croppedPath);
       await worker.terminate();
 
-      // 7️⃣ Удаляем временные файлы
+      // 7 Delete temporary files
       fs.unlinkSync(localPath);
       fs.unlinkSync(croppedPath);
 

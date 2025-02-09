@@ -6,11 +6,11 @@ const PORT = 3001;
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
-  // Настройка CORS
+  // Configuring CORS
   app.enableCors({
-    origin: 'http://localhost:3000', // домены, которым разрешен доступ
-    methods: 'GET,HEAD,PUT,PATCH,POST,DELETE', // методы, которые вы хотите разрешить
-    allowedHeaders: 'Content-Type, Accept', // заголовки, которые вы хотите разрешить
+    origin: 'http://localhost:3000', // domains that are allowed to access
+    methods: 'GET,HEAD,PUT,PATCH,POST,DELETE', // methods you want to allow
+    allowedHeaders: 'Content-Type, Accept', // headers you want to allow
   });
 
   // app.use((req, res, next) => {

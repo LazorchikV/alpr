@@ -7,7 +7,10 @@ import { IAlprService } from '../alpr/alpr.service';
 export interface IAIService<T> {
   uploadFile(file: Express.Multer.File): Promise<Partial<T> & {
     imageUrl: string;
-    recognizePlate: { text: string; boundingBox: { x: number; y: number; width: number; height: number } }
+    recognizePlate: {
+      text: string;
+      boundingBox: { x: number; y: number; width: number; height: number }
+    }
   }>;
 }
 
@@ -24,9 +27,9 @@ export class AIService<T> implements IAIService<T> {
   }> {
     const imageKey = await this.awsService.uploadToS3(file);
     const imageUrl = await this.awsService.getImageUrl(imageKey);
-    const kindImage = await this.awsService.uploadAndAnalyzeImage(imageKey);
+    const confidenceLevels = await this.awsService.uploadAndAnalyzeImage(imageKey);
     const {text, boundingBox} = await this.alprService.recognizePlate(imageKey);
 
-    return {...kindImage, imageUrl, recognizePlate: {text, boundingBox}};
+    return {...confidenceLevels, imageUrl, recognizePlate: {text, boundingBox}};
   }
 }

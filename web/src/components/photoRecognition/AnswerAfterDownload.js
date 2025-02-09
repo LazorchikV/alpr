@@ -1,9 +1,12 @@
-import { Fragment, useEffect } from 'react';
+import { useEffect, useRef, useState } from "react";
 import { Box, Typography, Card, CardContent, Stack, Paper } from "@mui/material";
 
 const AnswerAfterDownload = ({ answer }) => {
   const { imageUrl, Labels: labels = [], recognizePlate = {} } = answer || {};
-  const { text = '', boundingBox } = recognizePlate;
+  const { text = "", boundingBox } = recognizePlate;
+  const imageRef = useRef(null);
+  const canvasRef = useRef(null);
+  const [imageLoaded, setImageLoaded] = useState(false);
 
   console.log("Answer", { answer });
 
@@ -32,78 +35,76 @@ const AnswerAfterDownload = ({ answer }) => {
     ));
   };
 
-  const handleLabels = (labels) => {
-    const isCucumber = labels.some((label) => label.Name === "Cucumber");
-    return '';
-  };
-
   useEffect(() => {
-    handleLabels(filteredLabels);
-  }, [filteredLabels]);
+    if (!imageLoaded || !boundingBox || !canvasRef.current || !imageRef.current) return;
 
-  const drawBoundingBox = (image, boundingBox) => {
-    const canvas = document.createElement('canvas');
-    const ctx = canvas.getContext('2d');
-    canvas.width = image.width;
-    canvas.height = image.height;
+    const image = imageRef.current;
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext("2d");
 
-    ctx.drawImage(image, 0, 0);
-    ctx.strokeStyle = 'red';
-    ctx.lineWidth = 2;
+    // Set canvas sizes to match the image
+    canvas.width = image.naturalWidth;
+    canvas.height = image.naturalHeight;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.strokeStyle = "red";
+    ctx.lineWidth = 3;
 
-    const x = boundingBox.Left * canvas.width;
-    const y = boundingBox.Top * canvas.height;
-    const width = boundingBox.Width * canvas.width;
-    const height = boundingBox.Height * canvas.height;
+    // ** If boundingBox is in relative coordinates (0-1), multiply by the dimensions **
+    const isRelative = boundingBox.x < 1 && boundingBox.y < 1 && boundingBox.width < 1 && boundingBox.height < 1;
+    const x = isRelative ? boundingBox.x * canvas.width : boundingBox.x;
+    const y = isRelative ? boundingBox.y * canvas.height : boundingBox.y;
+    const width = isRelative ? boundingBox.width * canvas.width : boundingBox.width;
+    const height = isRelative ? boundingBox.height * canvas.height : boundingBox.height;
 
+    // ** Drawing a frame **
     ctx.strokeRect(x, y, width, height);
-    document.body.appendChild(canvas);
-  }
+  }, [boundingBox, imageLoaded]);
 
   return (
-    <Fragment>
-      <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2, mt: 3 }}>
-        <Paper
-          elevation={3}
-          sx={{
-            width: 300,
-            height: 200,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            bgcolor: "white",
-            border: "2px solid black",
-            boxShadow: 3,
-          }}
-        >
-          <Typography variant="h5" color="goldenrod" sx={{ fontWeight: "bold" }}>
-            {text || "Not found"}
-          </Typography>
-        </Paper>
-        <Stack direction="row" spacing={2} justifyContent="center" flexWrap="wrap">
-          {displayLabels(filteredLabels)}
-        </Stack>
-      </Box>
+    <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2, mt: 3 }}>
+      <Paper
+        elevation={3}
+        sx={{
+          width: 300,
+          height: 200,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          bgcolor: "white",
+          border: "2px solid black",
+          boxShadow: 3,
+        }}
+      >
+        <Typography variant="h5" color="goldenrod" sx={{ fontWeight: "bold" }}>
+          {text || "Not found"}
+        </Typography>
+      </Paper>
+      <Stack direction="row" spacing={2} justifyContent="center" flexWrap="wrap">
+        {displayLabels(filteredLabels)}
+      </Stack>
       {imageUrl && (
-        <Box position="relative" mt={2}>
+        <Box position="relative" mt={2} sx={{ display: "flex", justifyContent: "center" }}>
           <img
+            ref={imageRef}
             src={imageUrl}
             alt="Uploaded image file"
             style={{ width: "100%", maxWidth: "500px", border: "2px solid black" }}
+            onLoad={() => setImageLoaded(true)} // ✅ Rendering frame after loading
           />
-          {boundingBox && (
-            <Box
-              position="absolute"
-              top={boundingBox.y}
-              left={boundingBox.x}
-              width={boundingBox.width}
-              height={boundingBox.height}
-              border="2px solid red"
-            />
-          )}
+          <canvas
+            ref={canvasRef}
+            style={{
+              position: "absolute",
+              top: 0,
+              left: 0,
+              width: "100%",
+              height: "100%",
+              pointerEvents: "none", // 🔹 Canvas does not interfere with interaction
+            }}
+          />
         </Box>
       )}
-    </Fragment>
+    </Box>
   );
 };
 

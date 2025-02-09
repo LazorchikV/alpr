@@ -12,7 +12,10 @@ export class AIController<T> {
     @UseInterceptors(FileInterceptor('file'))
     async uploadFile(@UploadedFile() file: Express.Multer.File): Promise<Partial<T> & {
         imageUrl: string;
-        recognizePlate: { text: string; boundingBox: { x: number; y: number; width: number; height: number } }
+        recognizePlate: {
+            text: string;
+            boundingBox: { x: number; y: number; width: number; height: number }
+        }
     }> {
      return this.aiService.uploadFile(file);
     }

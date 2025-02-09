@@ -10,7 +10,7 @@ import { promisify } from 'util';
 import * as path from 'node:path';
 
 export interface IAWSService<T> {
-    uploadAndAnalyzeImage(imageKey: string): Promise<Partial<T>>;
+    uploadAndAnalyzeImage(imageKey: string, isCustomConfigure?: boolean): Promise<Partial<T>>;
     uploadToS3(file: Express.Multer.File): Promise<string>;
     downloadFromS3(s3Key: string): Promise<string>;
     getImageUrl(imageKey: string): Promise<string>;
@@ -60,23 +60,24 @@ export class AWSService<T> implements IAWSService<T> {
     }
 
     public async getImageUrl(imageKey: string): Promise<string> {
-        const region = this.configService.get<string>('AWS_REGION_NAME');
         const params = {
             Bucket: this.bucketName,
             Key: imageKey,
         };
-
-        // Создаем подписанную ссылку с временем жизни (например, 1 час)
+        // Create a signed link with a lifetime (for example, 1 hour)
         const signedUrl = await getSignedUrl(this.s3Client, new GetObjectCommand(params), { expiresIn: 3600 });
-
         return signedUrl;
     }
 
-    public async uploadAndAnalyzeImage(imageKey: string): Promise<Partial<T>> {
-        // Анализ изображения с использованием Rekognition
-        const analysisResult = await this.analyzeImageWithRekognition(imageKey); // await this.analyzeImageWithSageMaker(imageKey);
+    public async uploadAndAnalyzeImage(imageKey: string, isCustomConfigure?: boolean): Promise<Partial<T>> {
+        // Image Analysis Using Rekognition
+        let analysisResult = await this.analyzeImageWithRekognition(imageKey);
 
-        // Возвращаем результат анализа
+        // For custom configure
+        if (isCustomConfigure) {
+            analysisResult = await this.analyzeImageWithSageMaker(imageKey);
+        }
+
         return analysisResult as Partial<T>;
     }
 
@@ -89,11 +90,11 @@ export class AWSService<T> implements IAWSService<T> {
             ContentType: file.mimetype,
         };
 
-        // Загружаем файл в S3
+        // Uploading the file to S3
         const command = new PutObjectCommand(params);
         await this.s3Client.send(command);
 
-        return key; // Возвращаем ключ файла
+        return key;
     }
 
     public async downloadFromS3(s3Key: string): Promise<string> {
@@ -105,17 +106,17 @@ export class AWSService<T> implements IAWSService<T> {
             throw new Error(`Failed to download file from S3: ${s3Key}`);
         }
 
-        // Определяем путь к папке и создаем ее, если она отсутствует
+        // Determine the path to the folder and create it if it is missing
         const tmpDir = path.join(__dirname, '/tmp');
         if (!fs.existsSync(tmpDir)) {
             fs.mkdirSync(tmpDir, { recursive: true });
         }
 
-        // Формируем путь к файлу
+        // Forming the path to the file
         const localPath = path.join(tmpDir, s3Key);
         const fileStream = fs.createWriteStream(localPath);
 
-        // Используем pipe через stream и промисифицируем его
+        // Using pipe via stream and promising it
         const streamPipeline = promisify(pipeline);
         await streamPipeline(response.Body as NodeJS.ReadableStream, fileStream);
 
@@ -123,18 +124,11 @@ export class AWSService<T> implements IAWSService<T> {
             throw new Error(`File not found: ${localPath}`);
         }
 
-        console.log(`Attempting to read image: ${localPath}`);
-
         const stats = fs.statSync(localPath);
-        console.log(`File size: ${stats.size} bytes`);
 
         if (stats.size === 0) {
             throw new Error(`Downloaded file is empty: ${localPath}`);
         }
-
-        const buffer = fs.readFileSync(localPath);
-        console.log(`First 20 bytes of file: ${buffer.toString('hex').slice(0, 40)}`);
-
 
         return localPath;
     }
@@ -156,7 +150,7 @@ export class AWSService<T> implements IAWSService<T> {
     }
 
     async analyzeImageWithSageMaker(s3Key: string): Promise<any> {
-        // Получаем объект из S3
+        // Getting an object from S3
         const getObjectParams = {
             Bucket: this.bucketName,
             Key: s3Key,
@@ -164,7 +158,7 @@ export class AWSService<T> implements IAWSService<T> {
         const getObjectCommand = new GetObjectCommand(getObjectParams);
         const s3Object = await this.s3Client.send(getObjectCommand);
 
-        // Преобразуем данные в base64
+        // Convert data to base64
         const imageBase64 = await this.streamToString(s3Object.Body as NodeJS.ReadableStream);
 
         const params = {
@@ -180,7 +174,7 @@ export class AWSService<T> implements IAWSService<T> {
         return JSON.parse(resultString);
     }
 
-    // Преобразование потока в строку
+    // Converting a stream to a string
     private async streamToString(stream: NodeJS.ReadableStream): Promise<string> {
         return new Promise((resolve, reject) => {
             const chunks: Uint8Array[] = [];
