@@ -2,7 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { ApiController } from './api.controller';
 
 describe('ApiController', () => {
-  let controller: TInput;
+  let controller;
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({

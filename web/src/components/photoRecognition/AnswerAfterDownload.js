@@ -8,8 +8,6 @@ const AnswerAfterDownload = ({ answer }) => {
   const canvasRef = useRef(null);
   const [imageLoaded, setImageLoaded] = useState(false);
 
-  console.log("Answer", { answer });
-
   useEffect(() => {
     if (!imageLoaded || !boundingBox || !canvasRef.current || !imageRef.current) return;
 
