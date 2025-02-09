@@ -6,6 +6,7 @@ import {UploadBodyDto} from './dtos/upload-body.dto';
 import {apiConstants} from './constants';
 import {Service} from '../enums';
 import {IProcessedFileService} from '../processed-file/processed-file.service';
+import * as process from 'node:process';
 
 export interface IApiService<T> {
     parseUploadBody(uploadBodyDto: UploadBodyDto): Promise<any>;
@@ -102,7 +103,7 @@ export class ApiService<T> implements IApiService<T> {
     }
 
     private async searchGoogle(text: string): Promise<string> {
-        const url = `https://www.googleapis.com/customsearch/v1?q=${encodeURIComponent(text)}&key=${apiConstants.googleSearchApiKey}&cx=${apiConstants.searchEngineId}`;
+        const url = `https://www.googleapis.com/customsearch/v1?q=${encodeURIComponent(text)}&key=${process.env.GOOGLE_SEARCH_API_KEY}&cx=${process.env.SEARCH_ENGINE_ID}`;
 
         try {
             const response = await axios.get(url);

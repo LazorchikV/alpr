@@ -1,6 +1,7 @@
 import React from "react";
 import PhotoRecognition from '../../photoRecognition/PhotoRecognition';
 import Tabs from '../../Tabs/Tabs';
+import GoogleMapComponent from '../../map/GoogleMapComponent';
 
 const RecognizePlates = () => {
   return (
@@ -9,8 +10,8 @@ const RecognizePlates = () => {
         <div label="PHOTO RECOGNIZATION">
           <PhotoRecognition/>
         </div>
-        <div label="MAP">
-          {'MAP'}
+        <div label="GOOGLE MAP">
+          <GoogleMapComponent />
         </div>
       </Tabs>
     </div>
