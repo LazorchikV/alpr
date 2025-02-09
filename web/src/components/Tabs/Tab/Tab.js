@@ -1,14 +1,21 @@
 import React from 'react';
+import { Tab } from "@mui/material";
 
-const Tab = ({ label, activeTab, onClick }) => {
+const TabComponent = ({ label, activeTab, onClick }) => {
     return (
-        <button
-            className={activeTab === label ? 'active' : ''}
-            onClick={() => onClick(label)}
-        >
-            {label}
-        </button>
+      <Tab
+        label={label}
+        onClick={() => onClick(label)}
+        sx={{
+            backgroundColor: activeTab === label ? "blue" : "grey",
+            color: activeTab === label ? "white" : "black",
+            fontWeight: activeTab === label ? "bold" : "normal",
+            borderRadius: "10px",
+            textTransform: "none",
+            margin: '10px',
+        }}
+      />
     );
 };
 
-export default Tab;
+export default TabComponent;

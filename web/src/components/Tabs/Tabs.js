@@ -1,5 +1,5 @@
 import React, {useState} from 'react';
-import Tab from './Tab/Tab';
+import TabComponent from './Tab/Tab';
 
 
 const Tabs = ({ children }) => {
@@ -13,7 +13,7 @@ const Tabs = ({ children }) => {
         <div>
             <div className="tabs">
                 {children.map((child) => (
-                    <Tab
+                    <TabComponent
                         key={child.props.label}
                         label={child.props.label}
                         activeTab={activeTab}
