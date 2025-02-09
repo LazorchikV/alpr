@@ -43,6 +43,10 @@ const AnswerAfterDownload = ({ answer }) => {
     ctx.strokeRect(x, y, width, height);
   }, [imageLoaded, boundingBox]);
 
+  useEffect(() => {
+    setImageLoaded(false);
+  }, [imageUrl]);
+
   return (
     <Box display="flex" flexDirection="column" alignItems="center" gap={3} mt={4}>
       <Paper
