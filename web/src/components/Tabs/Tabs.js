@@ -5,14 +5,12 @@ import Tab from './Tab/Tab';
 const Tabs = ({ children }) => {
     const [activeTab, setActiveTab] = useState(children[0].props.label);
 
-    // Обработчик переключения вкладок
     const handleTabClick = (label) => {
         setActiveTab(label);
     };
 
     return (
         <div>
-            {/* Заголовки вкладок */}
             <div className="tabs">
                 {children.map((child) => (
                     <Tab
@@ -23,8 +21,7 @@ const Tabs = ({ children }) => {
                     />
                 ))}
             </div>
-
-            {/* Контент активной вкладки */}
+            {/* Content of the active tab */}
             <div className="tab-content">
                 {children.map((child) =>
                     child.props.label === activeTab ? child.props.children : null

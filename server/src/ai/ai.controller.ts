@@ -10,14 +10,11 @@ export class AIController<T> {
     ) {}
     @Post()
     @UseInterceptors(FileInterceptor('file'))
-    async uploadFile(@UploadedFile() file: Express.Multer.File): Promise<{ message: string; answer: Awaited<T>; }> {
+    async uploadFile(@UploadedFile() file: Express.Multer.File): Promise<Partial<T> & {
+        imageUrl: string;
+        recognizePlate: { text: string; boundingBox: { x: number; y: number; width: number; height: number } }
+    }> {
      return this.aiService.uploadFile(file);
     }
-
-    // @Post('train')
-    // async trainModel(): Promise<string> {
-    //     const { trainX, trainY } = await this.aiService.loadData();
-    //     return this.aiService.trainModel(trainX, trainY);
-    // }
 }
 

@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {S3Client, PutObjectCommand, GetObjectCommand} from '@aws-sdk/client-s3';
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { RekognitionClient, DetectLabelsCommand } from '@aws-sdk/client-rekognition';
 import { SageMakerRuntimeClient, InvokeEndpointCommand } from '@aws-sdk/client-sagemaker-runtime';
 import * as fs from 'fs';
@@ -12,6 +13,7 @@ export interface IAWSService<T> {
     uploadAndAnalyzeImage(imageKey: string): Promise<Partial<T>>;
     uploadToS3(file: Express.Multer.File): Promise<string>;
     downloadFromS3(s3Key: string): Promise<string>;
+    getImageUrl(imageKey: string): Promise<string>;
 }
 
 @Injectable()
@@ -55,6 +57,19 @@ export class AWSService<T> implements IAWSService<T> {
 
         this.bucketName = this.configService.get<string>('AWS_S3_BUCKET_NAME');
         this.sagemakerEndpoint = this.configService.get<string>('AWS_SAGEMAKER_ENDPOINT_NAME');
+    }
+
+    public async getImageUrl(imageKey: string): Promise<string> {
+        const region = this.configService.get<string>('AWS_REGION_NAME');
+        const params = {
+            Bucket: this.bucketName,
+            Key: imageKey,
+        };
+
+        // Создаем подписанную ссылку с временем жизни (например, 1 час)
+        const signedUrl = await getSignedUrl(this.s3Client, new GetObjectCommand(params), { expiresIn: 3600 });
+
+        return signedUrl;
     }
 
     public async uploadAndAnalyzeImage(imageKey: string): Promise<Partial<T>> {

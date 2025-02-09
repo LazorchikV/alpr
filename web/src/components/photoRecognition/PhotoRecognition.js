@@ -3,9 +3,9 @@ import PhotoDownload from './PhotoDownload';
 import AnswerAfterDownload from './AnswerAfterDownload';
 
 const PhotoRecognition = (props) => {
-    // запрос данных
+    // request data
     const [commonRequest, setCommonRequest] = useState({});
-    // ответ после поиска
+    // answer after recognition
     const [answer, setAnswer] = useState(null);
 
     return (

@@ -3,9 +3,9 @@ import SearchDataInputOrDownload from './SearchDataInputOrDownload';
 import AnswerFromSearch from './AnswerSearch';
 
 const ProductsService = (props) => {
-    // запрос данных
+    // request data
     const [commonRequest, setCommonRequest] = useState({});
-    // ответ после поиска
+    // answer after search
     const [answerAfterSearch, setAnswerAfterSearch] = useState(null);
 
     return (

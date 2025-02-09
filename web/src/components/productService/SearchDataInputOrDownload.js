@@ -59,7 +59,7 @@ const SearchDataInputOrDownload = ({
                     <FileUpload file={file} setFile={setFile} setBufferFile={setBufferFile}/>
                 </label>
                 <br />
-                <button type="submit">Отправить</button>
+                <button type="submit">Send</button>
             </form>
         </div>
     );

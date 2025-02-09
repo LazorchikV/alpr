@@ -14,7 +14,7 @@ const PhotoDownload = ({
         <div>
             <form>
                 <label>
-                    Upload file with photo:
+                  Upload image file:
                     <FileDownload file={file} setFile={setFile} setAnswer={setAnswer}/>
                 </label>
                 <br />
