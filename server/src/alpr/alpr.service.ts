@@ -80,7 +80,7 @@ export class AlprService<T> implements IAlprService<T> {
 
       // 5️⃣ Recognize a number with Python EasyOCR
       const ocrResult = await recognizeWithEasyOCR(localPath);
-      const recognizedPlate = ocrResult.length > 0 ? ocrResult.filter(result => Number(result.confidence) >= 0.5) : "Not Found";
+      const recognizedPlate = ocrResult.length > 0 ? ocrResult : "Not Found";
 
       return { recognizedPlate };
     } catch (error) {
