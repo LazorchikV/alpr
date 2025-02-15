@@ -7,10 +7,13 @@ import { IAlprService } from '../alpr/alpr.service';
 export interface IAIService<T> {
   uploadFile(file: Express.Multer.File): Promise<Partial<T> & {
     imageUrl: string;
-    recognizePlate: {
-      text: string;
-      boundingBox: { x: number; y: number; width: number; height: number }
-    }
+    recognizedPlate: [
+      {
+        text: string,
+        confidence?: number,
+        boundingBox?: { x: number, y: number, width: number, height: number },
+      }
+    ],
   }>;
 }
 
@@ -23,13 +26,21 @@ export class AIService<T> implements IAIService<T> {
 
   public async uploadFile(file: Express.Multer.File): Promise<Partial<T> & {
     imageUrl: string;
-    recognizePlate: { text: string; boundingBox: { x: number; y: number; width: number; height: number } }
+    recognizedPlate: [{ text: string; boundingBox: { x: number; y: number; width: number; height: number } }]
   }> {
     const imageKey = await this.awsService.uploadToS3(file);
     const imageUrl = await this.awsService.getImageUrl(imageKey);
-    const confidenceLevels = await this.awsService.uploadAndAnalyzeImage(imageKey);
-    const {text, boundingBox} = await this.alprService.recognizePlate(imageKey);
+    const confidenceLevels: any = await this.awsService.uploadAndAnalyzeImage(imageKey);
 
-    return {...confidenceLevels, imageUrl, recognizePlate: {text, boundingBox}};
+    if (!confidenceLevels?.Labels?.some(label => label.Name === 'License Plate')) {
+      return {
+        ...confidenceLevels,
+        imageUrl,
+        recognizedPlate: [{text: 'License Plate not found', boundingBox: { x: 0, y: 0, width: 0, height: 0 } }]
+      };
+    }
+
+    const {recognizedPlate} = await this.alprService.recognizePlate(imageKey);
+    return {...confidenceLevels, imageUrl, recognizedPlate};
   }
 }

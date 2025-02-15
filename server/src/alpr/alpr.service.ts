@@ -1,93 +1,116 @@
 import { Inject, Injectable } from '@nestjs/common';
-import * as cv from 'opencv4nodejs-prebuilt-install';
-import * as Tesseract from 'tesseract.js';
 import * as fs from 'fs';
+import * as ort from 'onnxruntime-node'; // ONNX Runtime for YOLO
+import * as Jimp from 'jimp';
 import { Service } from '../enums';
 import { IAWSService } from '../aws/aws.service';
-import { PSM } from 'tesseract.js';
+import { recognizeWithEasyOCR } from "../EasyOCR/ocrService";
+
 
 export interface IAlprService<T> {
   recognizePlate(s3Key: string): Promise<{
-    text: string,
-    boundingBox?: { x: number, y: number, width: number, height: number } }
-  >;
+    recognizedPlate: [
+      {
+        text: string,
+        confidence?: number,
+        boundingBox?: { x: number, y: number, width: number, height: number },
+      }
+    ]
+  }>;
 }
-
 
 @Injectable()
 export class AlprService<T> implements IAlprService<T> {
-  constructor(
-    @Inject(Service.AWS) private readonly awsService: IAWSService<T>,
-  ) {}
+  private session: ort.InferenceSession | null = null;
+
+  constructor(@Inject(Service.AWS) private readonly awsService: IAWSService<T>) {
+    this.loadModel();
+  }
+
+  private async loadModel() {
+    this.session = await ort.InferenceSession.create('yolov8n.onnx');
+    console.log('✅ YOLOv8 Model Loaded');
+    console.log('✅ Model Input Names:', this.session.inputNames);
+  }
 
   public async recognizePlate(s3Key: string): Promise<{
-    text: string,
-    boundingBox?: { x: number, y: number, width: number, height: number }
+    recognizedPlate: [
+      {
+        text: string,
+        confidence?: number,
+        boundingBox?: { x: number, y: number, width: number, height: number },
+      }
+    ]
   }> {
     try {
-      // 1 Downloading image from S3
+      if (!this.session) throw new Error("Model not loaded");
+
+      // 1️⃣ Downloading an image from S3
       const localPath = await this.awsService.downloadFromS3(s3Key);
+      if (!fs.existsSync(localPath)) throw new Error(`File not found: ${localPath}`);
 
-      // Checking if the file exists
-      if (!fs.existsSync(localPath)) {
-        throw new Error(`File not found: ${localPath}`);
+      // 2️⃣ Load the image and scale it
+      const img = await Jimp.read(localPath);
+      img.resize(640, 640); // YOLO требует 640x640
+
+      // 📌 Jimp stores pixels in RGBA format, but YOLO requires RGB
+      const rgbData = new Float32Array(3 * 640 * 640);
+      const rgbaData = img.bitmap.data; // Uint8Array with RGBA channels
+
+      for (let i = 0, j = 0; i < rgbaData.length; i += 4, j += 3) {
+        rgbData[j] = rgbaData[i] / 255;     // R
+        rgbData[j + 1] = rgbaData[i + 1] / 255; // G
+        rgbData[j + 2] = rgbaData[i + 2] / 255; // B
       }
 
-      // 2 Loading an image
-      const image = cv.imread(localPath);
-      if (image.empty) {
-        throw new Error("Error loading image, empty Mat object");
-      }
+      // 3️⃣ Convert to tensor and feed to YOLO
+      const inputTensor = new ort.Tensor("float32", rgbData, [1, 3, 640, 640]);
 
-      // 3 Convert to gray and filter noise
-      const gray = image.bgrToGray();
-      const blurred = gray.gaussianBlur(new cv.Size(5, 5), 0);
-      const edged = blurred.canny(100, 200);
+      const results = await this.session.run({ images: inputTensor });
+      const predictions = this.postprocessResults(results);
 
-      // 4 Searching for contours
-      const contours = edged.findContours(cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE);
-      let licensePlateRegion: cv.Mat | null = null;
-      let boundingBox = null;
+      if (!predictions.length) return { recognizedPlate: [{ text: "Not Found" }]};
 
-      for (let contour of contours) {
-        const rect = contour.boundingRect();
-        if (rect.width > 50 && rect.height > 20) { // Minimum number size
-          licensePlateRegion = image.getRegion(new cv.Rect(rect.x, rect.y, rect.width, rect.height));
-          boundingBox = { x: rect.x, y: rect.y, width: rect.width, height: rect.height };
-          break;
-        }
-      }
+      // 4️⃣ Cut out the number plate
+      const { x, y, width, height } = predictions[0];
 
-      if (!licensePlateRegion) {
-        return { text: "Not Found" };
-      }
+      const cropped = img.crop(x, y, width, height);
+      const croppedPath = "cropped_plate.jpg";
+      await cropped.writeAsync(`./temp/${croppedPath}`);
 
-      // 5 Saving the processed region
-      const croppedPath = localPath.replace('.jpg', '_cropped.jpg');
-      cv.imwrite(croppedPath, licensePlateRegion);
+      // 5️⃣ Recognize a number with Python EasyOCR
+      const ocrResult = await recognizeWithEasyOCR(localPath);
+      const recognizedPlate = ocrResult.length > 0 ? ocrResult.filter(result => Number(result.confidence) >= 0.5) : "Not Found";
 
-      // 6 Run OCR
-      const worker = await Tesseract.createWorker('eng');
-      await worker.load();
-      await worker.reinitialize('eng');
-
-      await worker.setParameters({
-        tessedit_pageseg_mode: PSM.AUTO,
-        tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-',
-        user_defined_dpi: '300'
-      });
-
-      const { data: { text } } = await worker.recognize(croppedPath);
-      await worker.terminate();
-
-      // 7 Delete temporary files
-      fs.unlinkSync(localPath);
-      fs.unlinkSync(croppedPath);
-
-      return { text: text.trim(), boundingBox };
+      return { recognizedPlate };
     } catch (error) {
-      console.error("Error in recognizePlate:", error);
-      return { text: "Error in recognize image" };
+      console.error("❌ Error:", error);
+      return { recognizedPlate: [{text: "Error in recognition"}] };
     }
+  }
+
+  private postprocessResults(results: any) {
+    const predictions: { x: number; y: number; width: number; height: number }[] = [];
+    const outputData = results.output0.cpuData as Float32Array;
+    const numDetections = 8400;
+
+    for (let i = 0; i < numDetections; i++) {
+      const index = i * 84;
+      const xCenter = outputData[index];
+      const yCenter = outputData[index + 1];
+      const width = outputData[index + 2];
+      const height = outputData[index + 3];
+      const confidence = outputData[index + 4];
+
+      if (confidence > 0.5) {
+        predictions.push({
+          x: xCenter,
+          y: yCenter,
+          width,
+          height,
+        });
+      }
+    }
+    return predictions;
   }
 }
