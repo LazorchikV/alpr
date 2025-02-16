@@ -5,25 +5,22 @@ import * as Jimp from 'jimp';
 import { Service } from '../enums';
 import { IAWSService } from '../aws/aws.service';
 import { recognizeWithEasyOCR } from "../EasyOCR/ocrService";
+import { IOpenAlprService } from '../open-alpr/open-alpr.service';
+import { IRecognition } from './interfaces';
 
 
 export interface IAlprService<T> {
-  recognizePlate(s3Key: string): Promise<{
-    recognizedPlate: [
-      {
-        text: string,
-        confidence?: number,
-        boundingBox?: { x: number, y: number, width: number, height: number },
-      }
-    ]
-  }>;
+  recognizePlate(s3Key: string): Promise<{ recognizedPlate: IRecognition[]; }>;
 }
 
 @Injectable()
 export class AlprService<T> implements IAlprService<T> {
   private session: ort.InferenceSession | null = null;
 
-  constructor(@Inject(Service.AWS) private readonly awsService: IAWSService<T>) {
+  constructor(
+    @Inject(Service.AWS) private readonly awsService: IAWSService<T>,
+    @Inject(Service.OpenAlpr) private readonly openAlprService: IOpenAlprService<T>,
+  ) {
     this.loadModel();
   }
 
@@ -33,15 +30,7 @@ export class AlprService<T> implements IAlprService<T> {
     console.log('✅ Model Input Names:', this.session.inputNames);
   }
 
-  public async recognizePlate(s3Key: string): Promise<{
-    recognizedPlate: [
-      {
-        text: string,
-        confidence?: number,
-        boundingBox?: { x: number, y: number, width: number, height: number },
-      }
-    ]
-  }> {
+  public async recognizePlate(s3Key: string): Promise<{ recognizedPlate: IRecognition[]; }> {
     try {
       if (!this.session) throw new Error("Model not loaded");
 
@@ -49,9 +38,11 @@ export class AlprService<T> implements IAlprService<T> {
       const localPath = await this.awsService.downloadFromS3(s3Key);
       if (!fs.existsSync(localPath)) throw new Error(`File not found: ${localPath}`);
 
+      const openAlprResults = await this.openAlprService.recognizePlate(localPath);
+
       // 2️⃣ Load the image and scale it
       const img = await Jimp.read(localPath);
-      img.resize(640, 640); // YOLO требует 640x640
+      img.resize(640, 640); // YOLO required 640x640
 
       // 📌 Jimp stores pixels in RGBA format, but YOLO requires RGB
       const rgbData = new Float32Array(3 * 640 * 640);
@@ -69,7 +60,7 @@ export class AlprService<T> implements IAlprService<T> {
       const results = await this.session.run({ images: inputTensor });
       const predictions = this.postprocessResults(results);
 
-      if (!predictions.length) return { recognizedPlate: [{ text: "Not Found" }]};
+      if (!predictions.length && !openAlprResults?.length) return { recognizedPlate: [{ text: "Not Found" }]};
 
       // 4️⃣ Cut out the number plate
       const { x, y, width, height } = predictions[0];
@@ -79,8 +70,8 @@ export class AlprService<T> implements IAlprService<T> {
       await cropped.writeAsync(`./temp/${croppedPath}`);
 
       // 5️⃣ Recognize a number with Python EasyOCR
-      const ocrResult = await recognizeWithEasyOCR(localPath);
-      const recognizedPlate = ocrResult.length > 0 ? ocrResult : "Not Found";
+      const ocrResult= await recognizeWithEasyOCR(localPath);
+      const recognizedPlate = ocrResult.length > 0 ? [...openAlprResults, ...ocrResult] : [{text: "Not Found"}];
 
       return { recognizedPlate };
     } catch (error) {
@@ -102,7 +93,7 @@ export class AlprService<T> implements IAlprService<T> {
       const height = outputData[index + 3];
       const confidence = outputData[index + 4];
 
-      if (confidence > 0.5) {
+      if (confidence > 0) {
         predictions.push({
           x: xCenter,
           y: yCenter,

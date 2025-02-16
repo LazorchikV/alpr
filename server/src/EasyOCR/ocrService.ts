@@ -1,7 +1,8 @@
 import { execFile } from "child_process";
 import * as path from "path";
+import { IRecognition} from '../alpr/interfaces';
 
-export async function recognizeWithEasyOCR(imagePath: string): Promise<any> {
+export async function recognizeWithEasyOCR(imagePath: string): Promise<IRecognition[]> {
   return new Promise((resolve, reject) => {
     const pythonScript = path.join(__dirname, "easyocr_script.py");
 

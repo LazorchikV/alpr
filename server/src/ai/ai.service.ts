@@ -3,17 +3,12 @@ import { Inject, Injectable } from '@nestjs/common';
 import { Service } from '../enums';
 import { IAWSService } from '../aws/aws.service';
 import { IAlprService } from '../alpr/alpr.service';
+import { IRecognition } from '../alpr/interfaces';
 
 export interface IAIService<T> {
   uploadFile(file: Express.Multer.File): Promise<Partial<T> & {
     imageUrl: string;
-    recognizedPlate: [
-      {
-        text: string,
-        confidence?: number,
-        boundingBox?: { x: number, y: number, width: number, height: number },
-      }
-    ],
+    recognizedPlate: IRecognition[],
   }>;
 }
 
@@ -26,7 +21,7 @@ export class AIService<T> implements IAIService<T> {
 
   public async uploadFile(file: Express.Multer.File): Promise<Partial<T> & {
     imageUrl: string;
-    recognizedPlate: [{ text: string; boundingBox: { x: number; y: number; width: number; height: number } }]
+    recognizedPlate: IRecognition[],
   }> {
     const imageKey = await this.awsService.uploadToS3(file);
     const imageUrl = await this.awsService.getImageUrl(imageKey);

@@ -6,6 +6,7 @@ enum Service {
     AI ='AIService',
     AWS = 'AWSService',
     Alpr = 'AlprService',
+    OpenAlpr = 'OpenAlprService',
 }
 
 enum Resource {
